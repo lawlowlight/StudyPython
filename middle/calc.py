@@ -6,8 +6,6 @@ def 함수명(매개변수)
     처리로직2
 '''
 
-from multiprocessing import reduction
-
 
 def plus(a, b):
     res = a + b
