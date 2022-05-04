@@ -11,3 +11,10 @@ while True:
 
 f.close() ## 필수
 print('파일 읽기 완료')
+
+
+
+
+
+
+
