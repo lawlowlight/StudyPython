@@ -1,8 +1,10 @@
-# 주소록 프로그램 v1.0
-# 작성일 : 2022-05-04
+# 주소록 프로그램 v1.5
+# 작성일 : 2022-05-0
 # 작성자 : Hugp
-# 설  명 : 와 내일 논다~!!,
+# 설  명 : 월요일~ 파일DB에서 Oracle로 변경.
 import os
+import cx_Oracle as ora
+
 
 # 연락처 클래스
 
@@ -22,98 +24,88 @@ class Contact:
                     f'주  소 : {self.addr}\n'
                     f'=============================')
 
-        return str_val           
+        return str_val    
+
+def initDB():
+    dsn = ora.makedsn('localhost', 1521, service_name = 'orcl')
+    conn = ora.connect(user='scott', password='tiger', dsn=dsn, encoding='utf-8')
+    return conn     
+     
 def run():
-    lst_contact = [] # 빈 리스트 생성
-    load_contact(lst_contact) # 파일DB 읽어오기
-    
+    conn = initDB() # 오라클 연결해서 연결객체
     clearConsole()
     while True:
         sel_menu = get_menu()
         if sel_menu == 1:
             clearConsole()
-            contact = set_contact()
-            if contact is None: 
-                input('계속하려면 엔터를 누르세요.') # 엔터 대기
-                clearConsole()
-                continue # contact가 비면 리스트추가 불가
+            isval = set_contact(conn)
+            if isval:                
+                input('연락처 추가성공\n계속하려면 엔터를 누르세요.') # 아무값도 엔터 대기
+            else:
+                input('오류발생! 관리자 문의 요망') 
 
-            lst_contact.append(contact)
-            input('연락처 추가성공\n계속하려면 엔터를 누르세요.') # 아무값도 엔터 대기
             clearConsole()
         elif sel_menu == 2: # 연락처 출력
             clearConsole()
-            get_contact(lst_contact)
-            input() # 엔터 대기
+            get_contact(conn)
+            input('계속하려면 엔터를 누르세요') # 엔터 대기
             clearConsole()
         elif sel_menu == 3:
             clearConsole()
             name = input('삭제할 이름 입력 > ')
-            del_contact(lst_contact, name)
+            del_contact(conn, name)
             input('연락처 삭제성공\n계속하려면 엔터를 누르세요')
             clearConsole()
         elif sel_menu == 4: # 종료
-            save_contact(lst_contact) # 파일DB저장
+            conn.close()
             break
         else:
             clearConsole()
+
 # 주소록 입력함수
-def set_contact() -> Contact:
+def set_contact(conn):
     contact = None
+    isSucceed = False # 입력 성공여부
     try: # 아무입력없이 엔터 | 갯수 틀리면 생기는 예외처리
         name, phone_num, e_mail, addr = \
         input('정보입력(이름,핸드폰,이메일,주소(구분자 /)) >').split('/')
-        contact = Contact(phone_num=phone_num, e_mail=e_mail,
-                    name= name, addr= addr)
+        contact = Contact(phone_num=phone_num, e_mail=e_mail,name= name, addr= addr)                    
+        # DB처리
+        cur = conn.cursor()
+        query = ('INSERT INTO addressbook ' # 공백없으면 예외발생 ,없이
+                 'VALUES (SEQ_ADDRBOOK.nextval, :1, :2, :3, :4)')
+        tup = (contact.name, contact.phone_num, contact.e_mail, contact.addr)
+        cur.execute(query, tup)
+        conn.commit()
+        cur.close()
+        isSucceed = True
     except Exception as e:
         print('입력갯수를 확인(이름/핸드폰/이메일/주소)')
+        isSucceed = False
     finally:
-        return contact # 잘못되면 None 리턴, Contact 객체 리턴
+        return isSucceed # True면 DB입력성공, False DB입력실패
 
 
-    
-    return contact
+  
 
 # 주소록 전체 출력
-def get_contact(lst_contact):
-    for contact in lst_contact: 
+def get_contact(conn):
+    cur = conn.cursor()
+    query = 'SELECT name, phone_num, e_mail, addr FROM addressbook'
+
+    for row in cur.execute(query):
+        contact = Contact(row[0], row[1], row[2], row[3])
         print(contact)
-
-
+    
+    cur.close()
+      
 # 주소록 삭제
-def del_contact(lst_contact:list, name):
-    for i , contact in enumerate(lst_contact): 
-        if contact.name == name:
-            del lst_contact[i]
-
-
-# 주소록 파일DB 저장
-def save_contact(lst_contact:list):
-    f = open('./advanced/db_contact.txt', mode='w', encoding='utf-8')
-    for contact in lst_contact:
-        f.write(contact.name + '/')
-        f.write(contact.phone_num + '/')
-        f.write(contact.e_mail + '/')
-        f.write(contact.addr + '\n')
-
-    f.close()
-
-
-#주소록 파일DB 로드
-def load_contact(lst_contact:list):
-    f = open('./advanced/db_contact.txt', mode='r', encoding='utf-8')  
-    while True:
-        line = f.readline()
-        if not line: break
-
-        lines = line.rstrip('\n').split('/') # \n 제거하고, /로 나누고 리스트로
-        if len(lines) != 4: continue
-        contact = Contact(lines[0], lines[1], lines[2], lines[3])
-        lst_contact.append(contact)
-
-
-    f.close()
-
+def del_contact(conn, name):
+    cur = conn.cursor()
+    query = "DELETE FROM addressbook WHERE name = '{name}'"
+    cur.execute(query)
+    conn.commit()
+    conn.close()
 
 # 메뉴 출력 및 선택
 def get_menu():
