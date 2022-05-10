@@ -10,6 +10,7 @@ print(a)
 a = 3.14
 print(a)
 
+
 a = 1/10
 print(a)
 
